@@ -106,17 +106,19 @@
   <div id="container"></div>
 
   <div id="info">
-    <strong><a href="http://www.chromeexperiments.com/globe">WebGL Globe</a></strong> <span class="bull">&bull;</span> Created by the Google Data Arts Team <span class="bull">&bull;</span> Data acquired from <a href="http://sedac.ciesin.columbia.edu/gpw/">SEDAC</a>
+    <strong><a href="http://www.chromeexperiments.com/globe">WebGL Globe</a></strong> <span class="bull">&bull;</span> Created by the Google Data Arts Team <span class="bull">&bull;</span> Data acquired from <a href="http://data.planetos.com/">Planet OS Datahub</a>
   </div>
 
+  <!--
   <div id="currentInfo">
     <span id="year1990" class="year">1990</span>
     <span id="year1995" class="year">1995</span>
     <span id="year2000" class="year">2000</span>
   </div>
+  -->
 
   <div id="title">
-    World Population
+    Surface Temperature forecast for <span id="timestamp"></span>
   </div>
 
   <a id="ce" href="http://www.chromeexperiments.com/globe">
@@ -133,7 +135,7 @@
       Detector.addGetWebGLMessage();
     } else {
 
-      var years = ['1990','1995','2000'];
+      // var years = ['1990','1995','2000'];
       var container = document.getElementById('container');
       var globe = new DAT.Globe(container);
 
@@ -155,27 +157,49 @@
         };
       };
       
+      /*
       for(var i = 0; i<years.length; i++) {
         var y = document.getElementById('year'+years[i]);
         y.addEventListener('mouseover', settime(globe,i), false);
       }
+      */
       
       var xhr;
       TWEEN.start();
-      
-      
+
+      var APIKEY = '';
+      var POLYGON = '[[-1.7138671875,43.26120612479979],[-1.7138671875,49.83798245308484],[6.8115234375,49.83798245308484],[6.8115234375,43.26120612479979],[-1.7138671875,43.26120612479979]]]';
+      var DATASET_ID = 'noaa_gfs_global_sflux_0.12d';
+      var VARIABLE = 'Temperature_surface';
+
       xhr = new XMLHttpRequest();
-      xhr.open('GET', '/globe/population909500.json', true);
+      xhr.open('GET', 'http://api.planetos.com/v1/datasets/' + DATASET_ID + '/area?var=' + VARIABLE + '&count=1&grouping=location&polygon=' + POLYGON + '&apikey=' + APIKEY, true);
       xhr.onreadystatechange = function(e) {
         if (xhr.readyState === 4) {
           if (xhr.status === 200) {
             var data = JSON.parse(xhr.responseText);
             window.data = data;
-            for (i=0;i<data.length;i++) {
-              globe.addData(data[i][1], {format: 'magnitude', name: data[i][0], animated: true});
+            var dataSample = data.entries[0];
+            document.getElementById('timestamp').textContent = dataSample.axes.time;
+
+            var cookedData = [];
+            console.log('number of latitude samples', dataSample.indexAxes[0][1].length);
+            console.log('number of longitude samples', dataSample.indexAxes[1][1].length);
+            // cooked format: latitude, longitude, magnitude
+            for (var i = 0; i < dataSample.data.Temperature_surface.length; i++) {
+              for (var k = 0; k < dataSample.data.Temperature_surface[i].length; k++) {
+                cookedData.push(dataSample.indexAxes[0][1][i]);
+                cookedData.push(dataSample.indexAxes[1][1][k]);
+                // convert from Kelvin to Celsius and make abs value lower than zero
+                // probably "magnitude" is not right option for the temperature
+                cookedData.push((dataSample.data.Temperature_surface[i][k] - 273.15) / 200);
+              }
             }
+            console.log('data is cooked!', cookedData.length);
+            console.log(cookedData.slice(0,21));
+            globe.addData(cookedData, {format: 'magnitude', name: 'Temperature', animated: false});
             globe.createPoints();
-            settime(globe,0)();
+            // settime(globe,0)();
             globe.animate();
             document.body.style.backgroundImage = 'none'; // remove loading
           }
